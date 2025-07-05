@@ -1,37 +1,45 @@
 package handler
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
 	"micro-blog/internal/middleware"
 )
 
-type Logger interface {
-	Info(ctx context.Context, msg string)
-	Error(ctx context.Context, msg string)
-}
+const (
+	ErrBodyRequest   = "Invalid Request Body"
+	ErrRequestFields = "Invalid Request Fields"
+)
+
+const (
+	POST = "POST"
+)
 
 type Service interface {
+	UserService
 }
 
 type Router struct {
 	service Service
+	logger  *slog.Logger
 }
 
 func NewRouter(service Service, logger *slog.Logger) http.Handler {
 	r := http.NewServeMux()
-	//router := &Router{service: service}
+	router := &Router{
+		service: service,
+		logger:  logger,
+	}
 
 	// Инициализация middleware
-	validator := middleware.NewValidator().Middleware
-	loggerMw := middleware.ContextLoggerMiddleware(logger)
+	validate := middleware.NewValidator().Middleware
 	recovery := middleware.Recovery(logger)
 
 	// Утилита для оборачивания хендлера
 	wrap := func(h http.Handler) http.Handler {
-		return recovery(loggerMw(validator(h)))
+		return recovery(validate(h))
 	}
 
 	// Заглушка на "/"
@@ -39,6 +47,8 @@ func NewRouter(service Service, logger *slog.Logger) http.Handler {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Stub endpoint is alive"))
 	})))
+
+	r.Handle("/register", methodOnly(http.MethodPost, wrap(http.HandlerFunc(router.authHandler))))
 
 	return r
 }
@@ -52,4 +62,16 @@ func methodOnly(method string, h http.Handler) http.Handler {
 		}
 		h.ServeHTTP(w, r)
 	})
+}
+
+func getValidator(r *http.Request) *validator.Validate {
+	if v, ok := r.Context().Value("validator").(*validator.Validate); ok {
+		return v
+	}
+	return validator.New()
+}
+
+func (r *Router) authHandler(w http.ResponseWriter, req *http.Request) {
+	h := NewUserHandler(r.service, r.logger)
+	h.Authenticate(w, req)
 }
