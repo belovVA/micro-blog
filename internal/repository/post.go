@@ -33,3 +33,13 @@ func (r *PostRepo) CreatePost(post *model.Post) (*model.Post, error) {
 func (r *PostRepo) GetListPost() ([]*model.Post, error) {
 	return r.Posts, nil
 }
+
+func (r *PostRepo) LikePost(like *model.Like) error {
+	for i, post := range r.Posts {
+		if post.ID == like.PostID {
+			r.Posts[i].Likes = append(r.Posts[i].Likes, like.UserID)
+			return nil
+		}
+	}
+	return model.ErrPostNotFound
+}

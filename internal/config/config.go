@@ -9,6 +9,7 @@ import (
 )
 
 const pathEnv = ".env"
+const cfgPathDefault = "./configs/config.yaml"
 
 type HTTPConfig interface {
 	GetPort() string
@@ -31,7 +32,7 @@ func LoadConfig() (string, error) {
 
 	cfgPath := os.Getenv("CONFIG_PATH")
 	if cfgPath == "" {
-		cfgPath = "./configs/config.yaml"
+		cfgPath = cfgPathDefault
 	}
 
 	if _, err := os.Stat(cfgPath); err != nil {

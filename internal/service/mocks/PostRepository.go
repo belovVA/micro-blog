@@ -73,6 +73,24 @@ func (_m *PostRepository) GetListPost() ([]*model.Post, error) {
 	return r0, r1
 }
 
+// LikePost provides a mock function with given fields: like
+func (_m *PostRepository) LikePost(like *model.Like) error {
+	ret := _m.Called(like)
+
+	if len(ret) == 0 {
+		panic("no return value specified for LikePost")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*model.Like) error); ok {
+		r0 = rf(like)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // NewPostRepository creates a new instance of PostRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewPostRepository(t interface {

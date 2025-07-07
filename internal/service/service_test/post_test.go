@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"micro-blog/internal/model"
 	"micro-blog/internal/service"
 	mockpost "micro-blog/internal/service/mocks"
@@ -119,6 +120,85 @@ func TestPostService_GetListPost(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.mockReturn, got)
 			}
+		})
+	}
+}
+
+func TestPostService_LikePost(t *testing.T) {
+	type args struct {
+		like *model.Like
+	}
+
+	userID := uuid.New()
+	postID := uuid.New()
+
+	tests := []struct {
+		name           string
+		args           args
+		mockUser       func(*mockuser.UserRepository)
+		mockPost       func(*mockpost.PostRepository)
+		expectedErrMsg error
+	}{
+		{
+			name: "user not found",
+			args: args{
+				like: &model.Like{
+					PostID: postID,
+					UserID: userID,
+				},
+			},
+			mockUser: func(ur *mockuser.UserRepository) {
+				ur.On("GetUserById", userID).Return(nil, model.ErrUserNotFound)
+			},
+			mockPost:       func(pr *mockpost.PostRepository) {}, // не вызывается
+			expectedErrMsg: model.ErrUserNotFound,
+		},
+		{
+			name: "user exists but post not found",
+			args: args{
+				like: &model.Like{
+					PostID: postID,
+					UserID: userID,
+				},
+			},
+			mockUser: func(ur *mockuser.UserRepository) {
+				ur.On("GetUserById", userID).Return(&model.User{ID: userID, Name: "Alice"}, nil)
+			},
+			mockPost: func(pr *mockpost.PostRepository) {
+				pr.On("LikePost", mock.Anything).Return(model.ErrPostNotFound)
+			},
+			expectedErrMsg: model.ErrPostNotFound,
+		},
+		{
+			name: "user and post exist, success",
+			args: args{
+				like: &model.Like{
+					PostID: postID,
+					UserID: userID,
+				},
+			},
+			mockUser: func(ur *mockuser.UserRepository) {
+				ur.On("GetUserById", userID).Return(&model.User{ID: userID, Name: "Bob"}, nil)
+			},
+			mockPost: func(pr *mockpost.PostRepository) {
+				pr.On("LikePost", mock.Anything).Return(nil)
+			},
+			expectedErrMsg: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			userRepo := mockuser.NewUserRepository(t)
+			postRepo := mockpost.NewPostRepository(t)
+
+			tt.mockUser(userRepo)
+			tt.mockPost(postRepo)
+
+			ps := service.NewPostService(postRepo, userRepo)
+			err := ps.LikePost(context.Background(), tt.args.like)
+
+			assert.Equal(t, tt.expectedErrMsg, err)
 		})
 	}
 }

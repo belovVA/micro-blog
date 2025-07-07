@@ -12,6 +12,7 @@ const (
 	ErrBodyRequest   = "Invalid Request Body"
 	ErrRequestFields = "Invalid Request Fields"
 	ErrUUIDParsing   = "Invalid UUID"
+	ErrNotFound      = "Not Found"
 )
 
 type Service interface {
@@ -31,7 +32,6 @@ func NewRouter(service Service, logger *slog.Logger) http.Handler {
 		logger:  logger,
 	}
 
-	// Инициализация middleware
 	validate := middleware.NewValidator().Middleware
 	recovery := middleware.Recovery(logger)
 
@@ -40,14 +40,9 @@ func NewRouter(service Service, logger *slog.Logger) http.Handler {
 		return recovery(validate(h))
 	}
 
-	// Заглушка на "/"
-	r.Handle("/", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Stub endpoint is alive"))
-	})))
-
 	r.Handle("/register", methodOnly(http.MethodPost, wrap(http.HandlerFunc(router.authHandler))))
 	r.Handle("/posts", wrap(http.HandlerFunc(router.postsHandler)))
+	r.Handle("/posts/", methodOnly(http.MethodPost, wrap(http.HandlerFunc(router.LikePostHandler))))
 
 	return r
 }
@@ -85,4 +80,9 @@ func (r *Router) postsHandler(w http.ResponseWriter, req *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (r *Router) LikePostHandler(w http.ResponseWriter, req *http.Request) {
+	h := NewPostHandler(r.service, r.logger)
+	h.LikePost(w, req)
 }
