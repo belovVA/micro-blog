@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"micro-blog/internal/converter"
 	"micro-blog/internal/handler/dto"
@@ -16,6 +17,7 @@ import (
 type PostService interface {
 	CreatePost(ctx context.Context, post *model.Post) (*model.Post, error)
 	GetListPost(ctx context.Context) ([]*model.Post, error)
+	LikePost(ctx context.Context, like *model.Like) error
 }
 
 type PostHandler struct {
@@ -81,4 +83,53 @@ func (h *PostHandler) GetPostList(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.InfoContext(r.Context(), "successful get posts list")
 	response.SuccessJSON(w, postsResp, http.StatusOK)
+}
+
+func (h *PostHandler) LikePost(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+
+	const prefix = "/posts/"
+	const suffix = "/like"
+
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		response.WriteError(w, ErrNotFound, http.StatusNotFound)
+		h.logger.Info(ErrNotFound, slog.String(logger.ErrorKey, path))
+		return
+	}
+
+	// Извлекаем id из пути
+	idPartStr := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
+	idPartStr = strings.Trim(idPartStr, "/")
+
+	var req dto.LikeRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.WriteError(w, ErrBodyRequest, http.StatusBadRequest)
+		h.logger.Info(ErrBodyRequest, slog.String(logger.ErrorKey, err.Error()))
+		return
+	}
+
+	v := getValidator(r)
+	if err := v.Struct(req); err != nil {
+		response.WriteError(w, ErrRequestFields, http.StatusBadRequest)
+		h.logger.Info(ErrRequestFields, slog.String(logger.ErrorKey, err.Error()))
+		return
+	}
+
+	likeModel, err := converter.ToLikeModelFromReq(&req, idPartStr)
+	if err != nil {
+		response.WriteError(w, ErrUUIDParsing, http.StatusBadRequest)
+		h.logger.Info(ErrRequestFields, slog.String(logger.ErrorKey, err.Error()))
+		return
+	}
+
+	err = h.Service.LikePost(r.Context(), likeModel)
+	if err != nil {
+		response.WriteError(w, err.Error(), http.StatusBadRequest)
+		h.logger.Info("error to like post", slog.String(logger.ErrorKey, err.Error()))
+		return
+	}
+
+	h.logger.InfoContext(r.Context(), "successful liked post")
+	response.SuccessCode(w, http.StatusOK)
 }
