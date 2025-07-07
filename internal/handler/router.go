@@ -42,7 +42,7 @@ func NewRouter(service Service, logger *slog.Logger) http.Handler {
 
 	r.Handle("/register", methodOnly(http.MethodPost, wrap(http.HandlerFunc(router.authHandler))))
 	r.Handle("/posts", wrap(http.HandlerFunc(router.postsHandler)))
-	r.Handle("/posts/", methodOnly(http.MethodPost, wrap(http.HandlerFunc(router.postLikeHandler))))
+	r.Handle("/posts/", methodOnly(http.MethodPost, wrap(http.HandlerFunc(router.LikePostHandler))))
 
 	return r
 }
@@ -82,7 +82,7 @@ func (r *Router) postsHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (r *Router) postLikeHandler(w http.ResponseWriter, req *http.Request) {
+func (r *Router) LikePostHandler(w http.ResponseWriter, req *http.Request) {
 	h := NewPostHandler(r.service, r.logger)
 	h.LikePost(w, req)
 }

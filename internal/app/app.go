@@ -31,6 +31,7 @@ func NewApp(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error loading http config: %w", err)
 	}
+
 	//init repo
 	repo := repository.NewRepository()
 
