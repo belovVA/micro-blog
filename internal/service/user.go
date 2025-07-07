@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"micro-blog/internal/model"
 )
 
 type UserRepository interface {
 	CreateUser(user *model.User) (*model.User, error)
 	GetUserByName(name string) (*model.User, error)
+	GetUserById(id uuid.UUID) (*model.User, error)
 }
 
 type UserService struct {

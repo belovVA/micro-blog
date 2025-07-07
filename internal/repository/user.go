@@ -33,3 +33,13 @@ func (r *UserRepo) GetUserByName(name string) (*model.User, error) {
 	}
 	return nil, model.ErrUserNotFound
 }
+
+func (r *UserRepo) GetUserById(id uuid.UUID) (*model.User, error) {
+	for _, val := range r.Users {
+		if val.ID == id {
+			return val, nil
+		}
+	}
+
+	return nil, model.ErrUserNotFound
+}

@@ -11,14 +11,12 @@ import (
 const (
 	ErrBodyRequest   = "Invalid Request Body"
 	ErrRequestFields = "Invalid Request Fields"
-)
-
-const (
-	POST = "POST"
+	ErrUUIDParsing   = "Invalid UUID"
 )
 
 type Service interface {
 	UserService
+	PostService
 }
 
 type Router struct {
@@ -49,6 +47,7 @@ func NewRouter(service Service, logger *slog.Logger) http.Handler {
 	})))
 
 	r.Handle("/register", methodOnly(http.MethodPost, wrap(http.HandlerFunc(router.authHandler))))
+	r.Handle("/posts", wrap(http.HandlerFunc(router.postsHandler)))
 
 	return r
 }
@@ -74,4 +73,16 @@ func getValidator(r *http.Request) *validator.Validate {
 func (r *Router) authHandler(w http.ResponseWriter, req *http.Request) {
 	h := NewUserHandler(r.service, r.logger)
 	h.Authenticate(w, req)
+}
+
+func (r *Router) postsHandler(w http.ResponseWriter, req *http.Request) {
+	h := NewPostHandler(r.service, r.logger)
+	switch req.Method {
+	case http.MethodPost:
+		h.CreatePost(w, req)
+	case http.MethodGet:
+		h.GetPostList(w, req)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }

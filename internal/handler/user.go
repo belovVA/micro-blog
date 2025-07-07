@@ -46,7 +46,6 @@ func (h *UserHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userModel := converter.ToUserModelFromReq(&req)
-	h.logger.InfoContext(r.Context(), "telo", "user", userModel.Name)
 
 	user, err := h.Service.Authenticate(r.Context(), userModel)
 	if err != nil {
