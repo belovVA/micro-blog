@@ -45,7 +45,6 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		h.logger.Info(ErrRequestFields, slog.String(logger.ErrorKey, err.Error()))
 		return
 	}
-	h.logger.InfoContext(r.Context(), "successful validated json")
 
 	postModel, err := converter.ToPostModelFromReq(&req)
 	if err != nil {
