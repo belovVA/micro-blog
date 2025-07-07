@@ -4,8 +4,8 @@ build-up:
 	#docker compose up -d
 	bash start.sh
 test:
-#	go clean -testcache
-#	go test -covermode=atomic -coverpkg=$(COVERPKG) -coverprofile=coverage.out $(PKGS)
+	go clean -testcache
+	go test ./...
 
 cover:
 #	go tool cover -func=coverage.out
