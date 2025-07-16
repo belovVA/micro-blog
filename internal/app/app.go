@@ -14,9 +14,10 @@ import (
 	"micro-blog/internal/config"
 	"micro-blog/internal/config/env"
 	"micro-blog/internal/handler"
+	asyncLogger "micro-blog/internal/logger"
 	"micro-blog/internal/repository"
 	"micro-blog/internal/service"
-	"micro-blog/pkg/logger"
+	"micro-blog/pkg/pkglogger"
 )
 
 type App struct {
@@ -24,8 +25,13 @@ type App struct {
 	router  http.Handler
 }
 
+const (
+	bufferLogSize = 100
+)
+
 func NewApp(ctx context.Context) (*App, error) {
-	logger := logger.InitLogger()
+	_ = pkglogger.InitLogger()
+	logger := asyncLogger.NewAsyncLogger(bufferLogSize)
 
 	htppCfg, err := env.HTTPConfigLoad()
 	if err != nil {

@@ -9,8 +9,9 @@ import (
 	"micro-blog/internal/converter"
 	"micro-blog/internal/handler/dto"
 	"micro-blog/internal/handler/pkg/response"
+	"micro-blog/internal/logger"
 	"micro-blog/internal/model"
-	"micro-blog/pkg/logger"
+	"micro-blog/pkg/pkglogger"
 )
 
 type UserService interface {
@@ -19,10 +20,10 @@ type UserService interface {
 
 type UserHandler struct {
 	Service UserService
-	logger  *slog.Logger
+	logger  logger.Logger
 }
 
-func NewUserHandler(service UserService, logger *slog.Logger) *UserHandler {
+func NewUserHandler(service UserService, logger logger.Logger) *UserHandler {
 	return &UserHandler{
 		Service: service,
 		logger:  logger,
@@ -34,14 +35,14 @@ func (h *UserHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.WriteError(w, ErrBodyRequest, http.StatusBadRequest)
-		h.logger.Info(ErrBodyRequest, slog.String(logger.ErrorKey, err.Error()))
+		h.logger.Info(ErrBodyRequest, slog.String(pkglogger.ErrorKey, err.Error()))
 		return
 	}
 
 	v := getValidator(r)
 	if err := v.Struct(req); err != nil {
 		response.WriteError(w, ErrRequestFields, http.StatusBadRequest)
-		h.logger.Info(ErrRequestFields, slog.String(logger.ErrorKey, err.Error()))
+		h.logger.Info(ErrRequestFields, slog.String(pkglogger.ErrorKey, err.Error()))
 		return
 	}
 
@@ -50,12 +51,12 @@ func (h *UserHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 	user, err := h.Service.Authenticate(r.Context(), userModel)
 	if err != nil {
 		response.WriteError(w, err.Error(), http.StatusBadRequest)
-		h.logger.Info("error to register user", slog.String(logger.ErrorKey, err.Error()))
+		h.logger.Info("error to register user", slog.String(pkglogger.ErrorKey, err.Error()))
 		return
 	}
 
 	resp := converter.ToUserRespFromModel(user)
-	h.logger.InfoContext(r.Context(), "successful register")
+	h.logger.InfoContext(r.Context(), "user successful register")
 
 	response.SuccessJSON(w, resp, http.StatusCreated)
 }
