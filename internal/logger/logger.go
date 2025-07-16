@@ -3,10 +3,12 @@ package logger
 import (
 	"context"
 	"log/slog"
+	"sync"
 )
 
 type Logger interface {
 	Info(msg string, attrs ...slog.Attr)
+	Error(msg string, attrs ...slog.Attr)
 	InfoContext(ctx context.Context, msg string, attrs ...slog.Attr)
 	ErrorContext(ctx context.Context, msg string, attrs ...slog.Attr)
 	With(args ...any) Logger
@@ -23,6 +25,7 @@ type AsyncLogger struct {
 	logChan   chan Event
 	done      chan struct{}
 	baseAttrs []slog.Attr
+	wg        sync.WaitGroup
 }
 
 func NewAsyncLogger(bufferSize int) *AsyncLogger {
@@ -31,17 +34,25 @@ func NewAsyncLogger(bufferSize int) *AsyncLogger {
 		done:      make(chan struct{}),
 		baseAttrs: nil,
 	}
+	al.wg.Add(1)
 	go al.listen()
 	return al
 }
 
 func (a *AsyncLogger) listen() {
+	defer a.wg.Done()
 	for {
 		select {
 		case event := <-a.logChan:
 			allAttrs := append(a.baseAttrs, event.Attrs...)
 			slog.LogAttrs(event.Ctx, event.Level, event.Message, allAttrs...)
 		case <-a.done:
+			close(a.logChan)
+			// теперь прочитаем все, что осталось в logChan
+			for event := range a.logChan {
+				allAttrs := append(a.baseAttrs, event.Attrs...)
+				slog.LogAttrs(event.Ctx, event.Level, event.Message, allAttrs...)
+			}
 			return
 		}
 	}
@@ -59,6 +70,9 @@ func (a *AsyncLogger) InfoContext(ctx context.Context, msg string, attrs ...slog
 	}
 }
 
+func (a *AsyncLogger) Error(msg string, attrs ...slog.Attr) {
+	a.ErrorContext(context.Background(), msg, attrs...)
+}
 func (a *AsyncLogger) ErrorContext(ctx context.Context, msg string, attrs ...slog.Attr) {
 	a.logChan <- Event{
 		Ctx:     ctx,
@@ -82,6 +96,7 @@ func (a *AsyncLogger) With(args ...any) Logger {
 
 func (a *AsyncLogger) Close() {
 	close(a.done)
+	a.wg.Wait()
 }
 
 // convertToAttrs конвертирует произвольный список аргументов в []slog.Attr.
