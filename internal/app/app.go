@@ -23,6 +23,7 @@ import (
 type App struct {
 	httpCfg config.HTTPConfig
 	router  http.Handler
+	logger  *asyncLogger.AsyncLogger
 }
 
 const (
@@ -50,6 +51,7 @@ func NewApp(ctx context.Context) (*App, error) {
 	return &App{
 			router:  r,
 			httpCfg: htppCfg,
+			logger:  logger,
 		},
 		nil
 
@@ -66,9 +68,9 @@ func (a *App) Run() error {
 
 	// Запуск сервера
 	go func() {
-		log.Info("Starting HTTP server", "addr", server.Addr)
+		a.logger.Info("Starting HTTP server", log.Any("addr", server.Addr))
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("HTTP server ListenAndServe failed", log.Any("err", err))
+			a.logger.Error("HTTP server ListenAndServe failed", log.Any("err", err))
 		}
 	}()
 
@@ -76,22 +78,24 @@ func (a *App) Run() error {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	<-quit
-	log.Info("Shutdown signal received")
+	a.logger.Info("Shutdown signal received")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Error("Server shutdown failed", log.Any("err", err))
+		a.logger.ErrorContext(ctx, "Server shutdown failed", log.Any("err", err))
 		return err
 	}
 
 	select {
 	case <-ctx.Done():
-		log.Warn("Shutdown timeout exceeded")
+		a.logger.Info("Shutdown timeout exceeded")
 	default:
-		log.Info("Server exited gracefully")
+		a.logger.Info("Server exited gracefully")
 	}
+
+	a.logger.Close()
 
 	return nil
 }
