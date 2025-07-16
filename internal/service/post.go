@@ -16,7 +16,7 @@ type PostRepository interface {
 type PostService struct {
 	postRepo  PostRepository
 	userRepo  UserRepository
-	likeQueue *queue.LikeQueue
+	likeQueue queue.LikeEnqueuer
 }
 
 func NewPostService(pr PostRepository, up UserRepository) *PostService {
@@ -55,6 +55,6 @@ func (s *PostService) HandleLike(ctx context.Context, like *model.Like) error {
 	return s.postRepo.LikePost(like)
 }
 
-func (s *PostService) AttachLikeQueue(q *queue.LikeQueue) {
+func (s *PostService) AttachLikeQueue(q queue.LikeEnqueuer) {
 	s.likeQueue = q
 }
