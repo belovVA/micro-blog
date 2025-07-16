@@ -82,3 +82,46 @@ func TestUserService_Authenticate(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkUserService_Authenticate(b *testing.B) {
+	mockRepo := new(mocks.UserRepository)
+
+	mockRepo.On("GetUserByName", "bench_user").
+		Return(&model.User{Name: "bench_user"}, nil).
+		Maybe()
+
+	svc := service.NewUserService(mockRepo)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = svc.Authenticate(context.Background(), &model.User{Name: "bench_user"})
+	}
+}
+
+func TestUserService_Authenticate_Race(t *testing.T) {
+	mockRepo := new(mocks.UserRepository)
+
+	mockRepo.On("GetUserByName", "race_user").
+		Return(&model.User{Name: "race_user"}, nil).
+		Maybe()
+
+	svc := service.NewUserService(mockRepo)
+
+	const goroutines = 50
+	errCh := make(chan error, goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			_, err := svc.Authenticate(context.Background(), &model.User{Name: "race_user"})
+			errCh <- err
+		}()
+	}
+
+	for i := 0; i < goroutines; i++ {
+		if err := <-errCh; err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	}
+
+	mockRepo.AssertExpectations(t)
+}

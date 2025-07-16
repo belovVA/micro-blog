@@ -7,9 +7,10 @@ import (
 
 	"github.com/google/uuid"
 	"micro-blog/internal/handler/pkg/response"
+	"micro-blog/internal/logger"
 )
 
-func Recovery(baseLogger *slog.Logger) func(http.Handler) http.Handler {
+func Recovery(baseLogger logger.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			reqLogger := baseLogger.With(

@@ -11,6 +11,7 @@ import (
 	"micro-blog/internal/model"
 	"micro-blog/internal/service"
 	mockpost "micro-blog/internal/service/mocks"
+	mockqueue "micro-blog/internal/service/mocks"
 	mockuser "micro-blog/internal/service/mocks"
 )
 
@@ -137,51 +138,32 @@ func TestPostService_LikePost(t *testing.T) {
 		args           args
 		mockUser       func(*mockuser.UserRepository)
 		mockPost       func(*mockpost.PostRepository)
+		mockLikeQueue  func(*mockqueue.MockLikeQueue)
 		expectedErrMsg error
+		runTwice       bool
+		secondErr      error
 	}{
 		{
 			name: "user not found",
-			args: args{
-				like: &model.Like{
-					PostID: postID,
-					UserID: userID,
-				},
-			},
+			args: args{like: &model.Like{PostID: postID, UserID: userID}},
 			mockUser: func(ur *mockuser.UserRepository) {
 				ur.On("GetUserById", userID).Return(nil, model.ErrUserNotFound)
 			},
-			mockPost:       func(pr *mockpost.PostRepository) {}, // не вызывается
+			mockPost:       func(pr *mockpost.PostRepository) {}, // не нужен тут
+			mockLikeQueue:  func(lq *mockqueue.MockLikeQueue) {}, // не нужен тут
 			expectedErrMsg: model.ErrUserNotFound,
 		},
 		{
-			name: "user exists but post not found",
-			args: args{
-				like: &model.Like{
-					PostID: postID,
-					UserID: userID,
-				},
-			},
+			name: "send enqueue like",
+			args: args{like: &model.Like{PostID: postID, UserID: userID}},
 			mockUser: func(ur *mockuser.UserRepository) {
 				ur.On("GetUserById", userID).Return(&model.User{ID: userID, Name: "Alice"}, nil)
 			},
 			mockPost: func(pr *mockpost.PostRepository) {
-				pr.On("LikePost", mock.Anything).Return(model.ErrPostNotFound)
 			},
-			expectedErrMsg: model.ErrPostNotFound,
-		},
-		{
-			name: "user and post exist, success",
-			args: args{
-				like: &model.Like{
-					PostID: postID,
-					UserID: userID,
-				},
-			},
-			mockUser: func(ur *mockuser.UserRepository) {
-				ur.On("GetUserById", userID).Return(&model.User{ID: userID, Name: "Bob"}, nil)
-			},
-			mockPost: func(pr *mockpost.PostRepository) {
-				pr.On("LikePost", mock.Anything).Return(nil)
+			mockLikeQueue: func(lq *mockqueue.MockLikeQueue) {
+				lq.On("Enqueue", mock.Anything).Once()
+
 			},
 			expectedErrMsg: nil,
 		},
@@ -191,14 +173,70 @@ func TestPostService_LikePost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			userRepo := mockuser.NewUserRepository(t)
 			postRepo := mockpost.NewPostRepository(t)
+			likeQueue := new(mockqueue.MockLikeQueue)
 
 			tt.mockUser(userRepo)
 			tt.mockPost(postRepo)
+			tt.mockLikeQueue(likeQueue)
 
 			ps := service.NewPostService(postRepo, userRepo)
-			err := ps.LikePost(context.Background(), tt.args.like)
+			ps.AttachLikeQueue(likeQueue)
 
+			err := ps.LikePost(context.Background(), tt.args.like)
 			assert.Equal(t, tt.expectedErrMsg, err)
+
+			userRepo.AssertExpectations(t)
+			postRepo.AssertExpectations(t)
+			likeQueue.AssertExpectations(t)
 		})
 	}
+}
+
+func BenchmarkPostService_LikePost(b *testing.B) {
+	userID := uuid.New()
+	postID := uuid.New()
+
+	userRepo := mockuser.NewUserRepository(b)
+	postRepo := mockpost.NewPostRepository(b)
+	likeQueue := new(mockqueue.MockLikeQueue)
+
+	userRepo.On("GetUserById", mock.Anything).Return(&model.User{ID: userID, Name: "BenchUser"}, nil)
+	likeQueue.On("Enqueue", mock.Anything).Return()
+
+	service := service.NewPostService(postRepo, userRepo)
+	service.AttachLikeQueue(likeQueue)
+
+	like := &model.Like{PostID: postID, UserID: userID}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = service.LikePost(context.Background(), like)
+	}
+}
+
+func TestPostService_LikePost_Concurrent(t *testing.T) {
+	userID := uuid.New()
+	postID := uuid.New()
+
+	userRepo := mockuser.NewUserRepository(t)
+	postRepo := mockpost.NewPostRepository(t)
+	likeQueue := new(mockqueue.MockLikeQueue)
+
+	userRepo.On("GetUserById", userID).Return(&model.User{ID: userID, Name: "ConcurrentUser"}, nil)
+	likeQueue.On("Enqueue", mock.Anything).Return()
+
+	service := service.NewPostService(postRepo, userRepo)
+	service.AttachLikeQueue(likeQueue)
+
+	like := &model.Like{PostID: postID, UserID: userID}
+
+	t.Run("parallel likes", func(t *testing.T) {
+		t.Parallel()
+		for i := 0; i < 100; i++ {
+			go func() {
+				err := service.LikePost(context.Background(), like)
+				assert.NoError(t, err)
+			}()
+		}
+	})
 }
