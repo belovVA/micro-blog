@@ -44,6 +44,8 @@ func NewRouter(service Service, logger logger.Logger) http.Handler {
 	r.Handle("/posts", wrap(http.HandlerFunc(router.postsHandler)))
 	r.Handle("/posts/", methodOnly(http.MethodPost, wrap(http.HandlerFunc(router.LikePostHandler))))
 
+	RegisterPprofRoutes(r)
+
 	return r
 }
 
