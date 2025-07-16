@@ -58,9 +58,10 @@ func NewApp(ctx context.Context) (*App, error) {
 	r := handler.NewRouter(serv, logger)
 
 	return &App{
-			router:  r,
-			httpCfg: htppCfg,
-			logger:  logger,
+			router:    r,
+			httpCfg:   htppCfg,
+			logger:    logger,
+			likeQueue: queueLikes,
 		},
 		nil
 

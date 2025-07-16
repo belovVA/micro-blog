@@ -19,6 +19,10 @@ type LikeQueue struct {
 	wg      sync.WaitGroup
 	logger  logger.Logger
 	handler LikeHandler
+
+	closeOnce sync.Once
+	closed    bool
+	mu        sync.Mutex
 }
 
 func NewLikeQueue(serv LikeHandler, sizeBuffer int, log logger.Logger) *LikeQueue {
@@ -40,34 +44,52 @@ func NewLikeQueue(serv LikeHandler, sizeBuffer int, log logger.Logger) *LikeQueu
 }
 
 func (q *LikeQueue) Enqueue(like *model.Like) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if q.closed {
+		q.logger.Info("likeQueue is closed; skipping enqueue")
+		return
+	}
+
 	q.queue <- like
 }
 
 func (q *LikeQueue) worker() {
+	defer q.wg.Done()
+
 	for {
 		select {
-
 		case event := <-q.queue:
-			err := q.handler.HandleLike(context.Background(), event)
-			if err != nil {
-				q.logger.Error("failed to like post", slog.String("error", err.Error()))
-			}
+			q.process(event)
 
 		case <-q.done:
-			close(q.queue)
-			for event := range q.queue {
-				err := q.handler.HandleLike(context.Background(), event)
-				if err != nil {
-					q.logger.Error("failed to like post", slog.String("error", err.Error()))
+			for {
+				select {
+				case event := <-q.queue:
+					q.process(event)
+				default:
+					return
 				}
 			}
-			return
 		}
 	}
+}
 
+func (q *LikeQueue) process(like *model.Like) {
+	err := q.handler.HandleLike(context.Background(), like)
+	if err != nil {
+		q.logger.Error("failed to like post", slog.String("error", err.Error()))
+	}
 }
 
 func (q *LikeQueue) Close() {
-	close(q.done)
-	q.wg.Wait()
+	q.closeOnce.Do(func() {
+		q.mu.Lock()
+		q.closed = true
+		q.mu.Unlock()
+
+		close(q.done)
+		q.wg.Wait()
+	})
 }

@@ -47,7 +47,15 @@ func (r *PostRepo) LikePost(like *model.Like) error {
 	defer r.mu.Unlock()
 	for i, post := range r.Posts {
 		if post.ID == like.PostID {
-			r.Posts[i].Likes = append(r.Posts[i].Likes, like.UserID)
+			var alreadyLiked bool
+			for _, v := range post.Likes {
+				if v == like.UserID {
+					alreadyLiked = true
+				}
+			}
+			if !alreadyLiked {
+				r.Posts[i].Likes = append(r.Posts[i].Likes, like.UserID)
+			}
 			return nil
 		}
 	}
