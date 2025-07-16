@@ -13,6 +13,10 @@ type LikeHandler interface {
 	HandleLike(ctx context.Context, like *model.Like) error
 }
 
+type LikeEnqueuer interface {
+	Enqueue(like *model.Like)
+}
+
 type LikeQueue struct {
 	queue   chan *model.Like
 	done    chan struct{}
