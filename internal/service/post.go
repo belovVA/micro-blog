@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"micro-blog/internal/model"
+	"micro-blog/internal/queue"
 )
 
 type PostRepository interface {
@@ -13,8 +14,9 @@ type PostRepository interface {
 }
 
 type PostService struct {
-	postRepo PostRepository
-	userRepo UserRepository
+	postRepo  PostRepository
+	userRepo  UserRepository
+	likeQueue *queue.LikeQueue
 }
 
 func NewPostService(pr PostRepository, up UserRepository) *PostService {
@@ -41,5 +43,18 @@ func (s *PostService) LikePost(ctx context.Context, like *model.Like) error {
 		return err
 	}
 
+	if s.likeQueue == nil {
+		return model.ErrLikeQueue
+	}
+
+	s.likeQueue.Enqueue(like)
+	return nil
+}
+
+func (s *PostService) HandleLike(ctx context.Context, like *model.Like) error {
 	return s.postRepo.LikePost(like)
+}
+
+func (s *PostService) AttachLikeQueue(q *queue.LikeQueue) {
+	s.likeQueue = q
 }

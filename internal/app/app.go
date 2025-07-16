@@ -15,19 +15,22 @@ import (
 	"micro-blog/internal/config/env"
 	"micro-blog/internal/handler"
 	asyncLogger "micro-blog/internal/logger"
+	"micro-blog/internal/queue"
 	"micro-blog/internal/repository"
 	"micro-blog/internal/service"
 	"micro-blog/pkg/pkglogger"
 )
 
 type App struct {
-	httpCfg config.HTTPConfig
-	router  http.Handler
-	logger  *asyncLogger.AsyncLogger
+	httpCfg   config.HTTPConfig
+	router    http.Handler
+	logger    *asyncLogger.AsyncLogger
+	likeQueue *queue.LikeQueue
 }
 
 const (
-	bufferLogSize = 100
+	bufferLogSize   = 100
+	bufferLikeQueue = 100
 )
 
 func NewApp(ctx context.Context) (*App, error) {
@@ -45,6 +48,12 @@ func NewApp(ctx context.Context) (*App, error) {
 	// init service
 	serv := service.NewService(repo)
 
+	// init likeQueue
+	queueLikes := queue.NewLikeQueue(serv, bufferLikeQueue, logger)
+
+	// ataching queueLike
+	serv.PostService.AttachLikeQueue(queueLikes)
+
 	//init router
 	r := handler.NewRouter(serv, logger)
 
@@ -58,6 +67,9 @@ func NewApp(ctx context.Context) (*App, error) {
 }
 
 func (a *App) Run() error {
+	defer a.logger.Close()
+	defer a.likeQueue.Close()
+
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%s", a.httpCfg.GetPort()),
 		Handler:      a.router,
@@ -94,8 +106,6 @@ func (a *App) Run() error {
 	default:
 		a.logger.Info("Server exited gracefully")
 	}
-
-	a.logger.Close()
 
 	return nil
 }

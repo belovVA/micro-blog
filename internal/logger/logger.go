@@ -29,6 +29,10 @@ type AsyncLogger struct {
 }
 
 func NewAsyncLogger(bufferSize int) *AsyncLogger {
+	if bufferSize < 1 {
+		bufferSize = 1
+	}
+
 	al := &AsyncLogger{
 		logChan:   make(chan Event, bufferSize),
 		done:      make(chan struct{}),
