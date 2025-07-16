@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"log/slog"
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
+	"micro-blog/internal/logger"
 	"micro-blog/internal/middleware"
 )
 
@@ -22,10 +22,10 @@ type Service interface {
 
 type Router struct {
 	service Service
-	logger  *slog.Logger
+	logger  logger.Logger
 }
 
-func NewRouter(service Service, logger *slog.Logger) http.Handler {
+func NewRouter(service Service, logger logger.Logger) http.Handler {
 	r := http.NewServeMux()
 	router := &Router{
 		service: service,
